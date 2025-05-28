@@ -2,7 +2,7 @@
 
 A sleek, feature-rich scientific calculator built with Python and the CustomTkinter library, offering a modern dark-themed user interface.
 
-![Calculator Screenshot (Placeholder - Replace with actual screenshot if available)](https://placehold.co/600x400/2B2B2B/FFFFFF?text=Calculator+UI+Screenshot)
+![Calculator Screenshot](screenshot.PNG)
 *(Replace the placeholder image above with an actual screenshot of your calculator)*
 
 ## Description
