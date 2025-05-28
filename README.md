@@ -81,11 +81,3 @@ pip install customtkinter
 ## Contributing
 
 Feel free to fork this repository, make improvements, and submit pull requests. For major changes, please open an issue first to discuss what you would like to change.
-
-## License
-
-This project can be considered under the MIT License (or specify your preferred license).
-
----
-
-*This README provides a template. Feel free to customize it further with more details, screenshots, or specific instructions relevant to your project version.*
