@@ -59,26 +59,6 @@ pip install customtkinter
     python modern_calculator.py
     ```
 
-## How to Package (Create .exe - Optional)
-
-To create a standalone executable (.exe) for Windows, you can use PyInstaller:
-
-1.  **Install PyInstaller:**
-    ```bash
-    pip install pyinstaller
-    ```
-2.  **Package the script:**
-    Navigate to your script's directory in the terminal and run:
-    ```bash
-    pyinstaller --onefile --windowed --name "ModernCalculator" modern_calculator.py
-    ```
-    (Replace `modern_calculator.py` with your script's actual filename).
-    The executable will be found in the `dist` folder.
-
-    * `--onefile`: Bundles everything into a single .exe.
-    * `--windowed`: Prevents a console window from appearing.
-    * `--name "ModernCalculator"`: Sets the name of the .exe file.
-
 ## Keyboard Shortcuts
 
 * **Numbers:** `0-9`, `.`
