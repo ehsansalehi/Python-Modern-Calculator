@@ -3,7 +3,6 @@
 A sleek, feature-rich scientific calculator built with Python and the CustomTkinter library, offering a modern dark-themed user interface.
 
 ![Calculator Screenshot](screenshot.PNG)
-*(Replace the placeholder image above with an actual screenshot of your calculator)*
 
 ## Description
 
