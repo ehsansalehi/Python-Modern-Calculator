@@ -1,450 +1,389 @@
 import customtkinter as ctk
-import tkinter as tk # Added for tk.Menu
+import tkinter as tk
+from tkinter import messagebox
 import math
 import re
 
-class CalculatorApp(ctk.CTk):
-    MAX_HISTORY_ITEMS = 50
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    import numpy as np
+    HAS_PLOT_LIBS = True
+except ImportError:
+    HAS_PLOT_LIBS = False
 
+class AdvancedCalculator(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Enhanced Python Calculator")
-        self.geometry("420x800") 
-        self.resizable(False, False)
-
+        self.title("Advenced Calculator")
+        self.geometry("400x600") 
+        self.minsize(380, 550)
+        
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
 
-        # State variables
-        self.full_expression = ""
-        self.current_entry = ""
-        self.display_needs_reset = False
+        self.expression = ""
+        self.memory_value = 0
+        self.is_degree = True
         self.history_log = []
-        self.history_visible = False 
+        self.result_var = ctk.StringVar(value="0")
+        self.equation_var = ctk.StringVar(value="")
 
-        self._configure_grid()
-        self._create_widgets()
-        self._update_display("0")
-        self._update_live_preview_display() 
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=0) # Display Row
+        self.grid_rowconfigure(1, weight=1) # Tabs Row
 
-        # Bind keyboard events
-        self.bind("<Key>", self._on_key_press)
-        self.bind("<Return>", lambda event: self._on_equals_press())
-        self.bind("<BackSpace>", lambda event: self._on_backspace_press())
-        self.bind("<Escape>", lambda event: self._on_clear_press())
+        self._create_display_area()
+        self._create_tabs()
+        self._bind_keys()
 
-        self.bind("<KP_Enter>", lambda event: self._on_equals_press())
-        self.bind("<KP_Add>", lambda event: self._on_operator_press('+'))
-        self.bind("<KP_Subtract>", lambda event: self._on_operator_press('-'))
-        self.bind("<KP_Multiply>", lambda event: self._on_operator_press('*'))
-        self.bind("<KP_Divide>", lambda event: self._on_operator_press('/'))
-        self.bind("<KP_Decimal>", lambda event: self._on_digit_press('.'))
-        for i in range(10):
-            self.bind(f"<KP_{i}>", lambda event, digit=str(i): self._on_digit_press(digit))
+    def _create_display_area(self):
+        self.display_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.display_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
 
-    def _configure_grid(self):
-        self.grid_columnconfigure((0, 1, 2, 3), weight=1)
-        self.grid_rowconfigure(0, weight=2)  # Main display
-        self.grid_rowconfigure(1, weight=1)  # Live preview display
-        for i in range(2, 10): 
-            self.grid_rowconfigure(i, weight=1) # Button rows
-        self.grid_rowconfigure(10, weight=0) # History Toggle Button
-        self.grid_rowconfigure(11, weight=3) # History Textbox
-
-    def _create_widgets(self):
-        # --- Main Display Screen ---
-        self.display_var = ctk.StringVar()
-        display_font = ctk.CTkFont(family="Arial", size=36, weight="bold")
-        self.display_label = ctk.CTkLabel(
-            self, textvariable=self.display_var, font=display_font, anchor="e",
-            fg_color="gray20", corner_radius=8, padx=10
+        self.lbl_equation = ctk.CTkLabel(
+            self.display_frame, textvariable=self.equation_var,
+            font=("Roboto", 14), text_color="gray60", anchor="e"
         )
-        self.display_label.grid(row=0, column=0, columnspan=4, sticky="nsew", padx=10, pady=(15, 5))
-        # Bind right-click for context menu
-        self.display_label.bind("<Button-3>", self._show_display_context_menu)
+        self.lbl_equation.pack(fill="x", pady=(0, 2))
 
-
-        # --- Live Preview Display ---
-        self.live_preview_var = ctk.StringVar()
-        live_preview_font = ctk.CTkFont(family="Arial", size=16)
-        self.live_preview_label = ctk.CTkLabel(
-            self, textvariable=self.live_preview_var, font=live_preview_font, anchor="e",
-            fg_color="gray15", corner_radius=6, padx=10
+        self.entry_result = ctk.CTkEntry(
+            self.display_frame, textvariable=self.result_var,
+            font=("Roboto Medium", 40), justify="right",
+            border_width=0, fg_color="transparent", text_color="white"
         )
-        self.live_preview_label.grid(row=1, column=0, columnspan=4, sticky="nsew", padx=10, pady=(0,10))
+        self.entry_result.pack(fill="x")
+        
+        ctk.CTkFrame(self.display_frame, height=2, fg_color="#1f6aa5").pack(fill="x", pady=5)
 
-        # --- Button Definitions ---
-        button_row_offset = 2
-        buttons_layout = [
-            ("AC", 0, 0, 1, 1, self._on_clear_press, "action_clear"),
-            ("(",  0, 1, 1, 1, lambda: self._on_parenthesis_press("("), "function"),
-            (")",  0, 2, 1, 1, lambda: self._on_parenthesis_press(")"), "function"),
-            ("DEL",0, 3, 1, 1, self._on_backspace_press, "action"),
-            ("sin",1, 0, 1, 1, lambda: self._on_function_press("math.sin(math.radians("), "function"),
-            ("cos",1, 1, 1, 1, lambda: self._on_function_press("math.cos(math.radians("), "function"),
-            ("tan",1, 2, 1, 1, lambda: self._on_function_press("math.tan(math.radians("), "function"),
-            ("sqrt",1,3, 1, 1, lambda: self._on_function_press("math.sqrt("), "function"),
-            ("log",2, 0, 1, 1, lambda: self._on_function_press("math.log10("), "function"),
-            ("ln", 2, 1, 1, 1, lambda: self._on_function_press("math.log("), "function"),
-            ("^",  2, 2, 1, 1, lambda: self._on_operator_press("^"), "operator"),
-            ("π",  2, 3, 1, 1, lambda: self._on_constant_press("math.pi"), "function"),
-            ("7",  3, 0, 1, 1, lambda: self._on_digit_press("7"), "number"),
-            ("8",  3, 1, 1, 1, lambda: self._on_digit_press("8"), "number"),
-            ("9",  3, 2, 1, 1, lambda: self._on_digit_press("9"), "number"),
-            ("/",  3, 3, 1, 1, lambda: self._on_operator_press("/"), "operator"),
-            ("4",  4, 0, 1, 1, lambda: self._on_digit_press("4"), "number"),
-            ("5",  4, 1, 1, 1, lambda: self._on_digit_press("5"), "number"),
-            ("6",  4, 2, 1, 1, lambda: self._on_digit_press("6"), "number"),
-            ("*",  4, 3, 1, 1, lambda: self._on_operator_press("*"), "operator"),
-            ("1",  5, 0, 1, 1, lambda: self._on_digit_press("1"), "number"),
-            ("2",  5, 1, 1, 1, lambda: self._on_digit_press("2"), "number"),
-            ("3",  5, 2, 1, 1, lambda: self._on_digit_press("3"), "number"),
-            ("-",  5, 3, 1, 1, lambda: self._on_operator_press("-"), "operator"),
-            ("0",  6, 0, 1, 1, lambda: self._on_digit_press("0"), "number"),
-            (".",  6, 1, 1, 1, lambda: self._on_digit_press("."), "number"),
-            ("+/-",6, 2, 1, 1, self._on_plus_minus_press, "action"),
-            ("+",  6, 3, 1, 1, lambda: self._on_operator_press("+"), "operator"),
-            ("e",  7, 0, 1, 1, lambda: self._on_constant_press("math.e"), "function"),
-            # "=" button now starts at column 1 and spans 3 columns
-            ("=",  7, 1, 3, 1, self._on_equals_press, "equals"), 
+    def _create_tabs(self):
+        self.tabview = ctk.CTkTabview(self, width=380, command=self._on_tab_change)
+        self.tabview.grid(row=1, column=0, sticky="nsew", padx=5, pady=0)
+        
+        self.tab_calc = self.tabview.add("Calculator")
+        self.tab_plot = self.tabview.add("Graphing")
+        
+        self._setup_calculator_tab()
+        self._setup_graphing_tab()
+
+    def _on_tab_change(self):
+        # Hides the calculator display when in Graphing mode
+        if self.tabview.get() == "Graphing":
+            self.display_frame.grid_remove()
+        else:
+            self.display_frame.grid()
+            # FIX: Remove focus from plot entry so it doesn't receive input in background
+            self.focus_set()
+
+    def _setup_calculator_tab(self):
+        self.tab_calc.columnconfigure((0,1,2,3,4), weight=1)
+        for i in range(10): self.tab_calc.rowconfigure(i, weight=1) 
+        
+        top_frame = ctk.CTkFrame(self.tab_calc, fg_color="transparent")
+        top_frame.grid(row=0, column=0, columnspan=5, sticky="ew", pady=(0, 5))
+        
+        self.deg_switch = ctk.CTkSwitch(top_frame, text="DEG", onvalue=True, offvalue=False)
+        self.deg_switch.select()
+        self.deg_switch.pack(side="left", padx=5)
+
+        ctk.CTkButton(top_frame, text="AC", width=40, fg_color="#B22222", 
+                      command=lambda: self._on_input("AC")).pack(side="right", padx=2)
+        
+        ctk.CTkButton(top_frame, text="?", width=30, fg_color="#607D8B", 
+                      command=self._open_help_window).pack(side="right", padx=2)
+
+        ctk.CTkButton(top_frame, text="Hist", width=40, fg_color="#455A64", 
+                      command=self._open_history_window).pack(side="right", padx=2)
+
+        sci_buttons = [
+            ("sin", "math.sin("), ("cos", "math.cos("), ("tan", "math.tan("), ("√", "math.sqrt("), ("^", "**"),
+            ("sinh", "math.sinh("), ("cosh", "math.cosh("), ("tanh", "math.tanh("), ("ln", "math.log("), ("log", "math.log10("),
+            ("asin", "math.asin("), ("acos", "math.acos("), ("atan", "math.atan("), ("e", "math.e"), ("π", "math.pi"),
+            ("gcd", "math.gcd("), ("lcm", "math.lcm("), ("nCr", "math.comb("), ("nPr", "math.perm("), ("n!", "math.factorial(")
         ]
-        button_font = ctk.CTkFont(family="Arial", size=16, weight="bold")
-        colors = {
-            "number": ("gray30", "gray40"), "operator": ("#FF8C00", "#FFA500"),
-            "function": ("gray40", "gray50"), "action": ("#6A5ACD", "#7B68EE"),
-            "action_clear": ("#B22222", "#CD5C5C"), "equals": ("#32CD32", "#3CB371")
-        }
-        for text, r_idx, col, colspan, rowspan, cmd, btn_type in buttons_layout:
-            grid_row = r_idx + button_row_offset
-            fg_c, hover_c = colors.get(btn_type, ("gray25", "gray35"))
-            text_color = "white"
-            if btn_type in ["operator", "equals"]: text_color = "black"
-            elif btn_type == "action_clear": text_color = "white"
-            button = ctk.CTkButton(
-                self, text=text, command=cmd, font=button_font, corner_radius=8,
-                fg_color=fg_c, hover_color=hover_c, text_color=text_color
-            )
-            if text == "e": button.configure(fg_color=colors["number"][0], hover_color=colors["number"][1], text_color="white")
-            if text == "DEL": button.configure(text_color="white") # Keep DEL white
-            button.grid(row=grid_row, column=col, columnspan=colspan, rowspan=rowspan, sticky="nsew", padx=3, pady=3)
 
-        # --- History Section ---
-        self.history_toggle_button = ctk.CTkButton(
-            self, text="History ▾", font=ctk.CTkFont(size=14, weight="bold"),
-            command=self._toggle_history_visibility,
-            fg_color="gray25", hover_color="gray35"
-        )
-        self.history_toggle_button.grid(row=10, column=0, columnspan=4, sticky="ew", padx=10, pady=(10,0))
-        
-        self.history_textbox = ctk.CTkTextbox(
-            self, height=100, font=ctk.CTkFont(family="Arial", size=15),
-            border_spacing=5, corner_radius=8, activate_scrollbars=True
-        )
-        self.history_textbox.configure(state="disabled")
-        self.history_textbox.bind("<Button-1>", self._on_history_click)
+        row_offset = 1
+        col_count = 5
+        for i, (txt, val) in enumerate(sci_buttons):
+            r = row_offset + (i // col_count)
+            c = i % col_count
+            self._btn(self.tab_calc, txt, r, c, "gray25", font_size=14, cmd=lambda v=val: self._on_input_raw(v))
 
-    def _show_display_context_menu(self, event):
-        context_menu = tk.Menu(self, tearoff=0)
-        # Attempt basic styling for the tk.Menu to somewhat blend
-        # These might have limited effect depending on the OS theme
-        context_menu.configure(bg="#FFFFFF", fg="white", activebackground="#0078D7", activeforeground="white", relief="flat", borderwidth=0)
-        
-        context_menu.add_command(label="Copy", command=self._context_menu_copy_action, 
-                                 background="#FFFFFF", foreground="#000000",
-                                 activebackground="#0078D7", activeforeground="white")
-        try:
-            context_menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            context_menu.grab_release()
+        sep_row = row_offset + (len(sci_buttons) // col_count)
+        ctk.CTkFrame(self.tab_calc, height=2, fg_color="gray30").grid(row=sep_row, column=0, columnspan=5, sticky="ew", pady=10)
 
-    def _context_menu_copy_action(self):
-        text_to_copy = self.display_var.get()
-        self._copy_to_clipboard(text_to_copy, "Result Copied!")
-
-    def _toggle_history_visibility(self):
-        if self.history_visible:
-            self.history_textbox.grid_remove()
-            self.history_toggle_button.configure(text="History ▾")
-            self.history_visible = False
-        else:
-            self.history_textbox.grid(row=11, column=0, columnspan=4, sticky="nsew", padx=10, pady=(0,10))
-            self._update_history_display() 
-            self.history_toggle_button.configure(text="History ▴")
-            self.history_visible = True
-
-    def _update_display(self, value=None):
-        if value is not None:
-            self.display_var.set(value)
-        else:
-            current_display_text = self.full_expression + self.current_entry
-            self.display_var.set(current_display_text if current_display_text else "0")
-        text_length = len(self.display_var.get())
-        font_size = 36
-        if text_length > 12: font_size = 30
-        if text_length > 16: font_size = 24
-        if text_length > 22: font_size = 20
-        if text_length > 28: font_size = 16
-        self.display_label.cget("font").configure(size=font_size)
-        self._update_live_preview_display()
-
-    def _update_live_preview_display(self):
-        expr_to_preview = self.full_expression + self.current_entry
-        if not expr_to_preview or self.display_needs_reset or \
-           expr_to_preview.endswith(tuple("+-*/^")) or expr_to_preview == "-":
-            self.live_preview_var.set("")
-            return
-        try:
-            temp_expr = expr_to_preview
-            open_p, closed_p = temp_expr.count('('), temp_expr.count(')')
-            if open_p > closed_p: temp_expr += ')' * (open_p - closed_p)
-            processed_expr = self._preprocess_for_eval(temp_expr)
-            if processed_expr.count("(") != processed_expr.count(")"):
-                self.live_preview_var.set("")
-                return
-            allowed_names = {"math": math, "__builtins__": {}}
-            result = eval(processed_expr, allowed_names)
-            result_str = str(int(result)) if isinstance(result, float) and result.is_integer() else f"{result:.10g}"
-            if 'e' not in result_str and '.' in result_str: result_str = result_str.rstrip('0').rstrip('.')
-            self.live_preview_var.set(f"≈ {result_str}")
-        except Exception:
-            self.live_preview_var.set("")
-
-    def _handle_input_reset(self):
-        if self.display_needs_reset:
-            self.full_expression, self.current_entry, self.display_needs_reset = "", "", False
-
-    def _on_digit_press(self, digit):
-        self._handle_input_reset()
-        if digit == "." and "." in self.current_entry: return
-        if self.current_entry == "0" and digit != ".": self.current_entry = digit
-        elif self.current_entry == "-0" and digit != ".": self.current_entry = "-" + digit
-        else: self.current_entry += digit
-        self._update_display()
-
-    def _on_operator_press(self, operator):
-        self._handle_input_reset()
-        if self.current_entry:
-            if not self.full_expression and self.current_entry == "0": self.full_expression = "0"
-            elif self.current_entry == "-" and not self.full_expression: self.full_expression = "-0"
-            elif self.current_entry == "-": self.full_expression += "(-0)"
-            else: self.full_expression += self.current_entry
-            self.full_expression += operator
-            self.current_entry = ""
-        elif self.full_expression:
-            last_char = self.full_expression[-1]
-            if last_char in "+-*/^" and not self.full_expression.endswith(("(", "s(")) and \
-               not (last_char in "+-*/" and self.full_expression[-2] == '('):
-                self.full_expression = self.full_expression[:-1] + operator
-            else: self.full_expression += operator
-        else:
-            self.current_entry = "-" if operator == '-' else "0" + operator
-        self.display_needs_reset = False
-        self._update_display()
-
-    def _on_function_press(self, func_template):
-        self._handle_input_reset()
-        if self.current_entry:
-            if self.current_entry[-1].isdigit() or self.current_entry.endswith((")", "math.pi", "math.e")):
-                self.full_expression += self.current_entry + "*"
-            else: self.full_expression += self.current_entry
-        self.full_expression += func_template
-        self.current_entry = ""
-        self.display_needs_reset = False
-        self._update_display()
-
-    def _on_constant_press(self, constant_str):
-        self._handle_input_reset()
-        if self.current_entry:
-            if self.current_entry[-1].isdigit() or self.current_entry.endswith(")"):
-                self.full_expression += self.current_entry + "*"
-            self.current_entry = constant_str
-        else: self.current_entry = constant_str
-        self.display_needs_reset = False
-        self._update_display()
-
-    def _on_parenthesis_press(self, parenthesis):
-        self._handle_input_reset()
-        if parenthesis == "(":
-            if self.current_entry:
-                if self.current_entry[-1].isdigit() or self.current_entry.endswith((")", "math.pi", "math.e")):
-                    self.full_expression += self.current_entry + "*"
-                else: self.full_expression += self.current_entry
-            self.full_expression += "("
-            self.current_entry = ""
-        else: # ")"
-            if self.current_entry or self.full_expression.count('(') > self.full_expression.count(')'):
-                if self.current_entry: self.full_expression += self.current_entry
-                self.full_expression += ")"
-                self.current_entry = ""
-        self.display_needs_reset = False
-        self._update_display()
-
-    def _on_clear_press(self):
-        self.full_expression, self.current_entry, self.display_needs_reset = "", "", True
-        self._update_display("0")
-
-    def _on_backspace_press(self):
-        if self.display_needs_reset and self.current_entry: self._on_clear_press(); return
-        self.display_needs_reset = False
-        if self.current_entry: self.current_entry = self.current_entry[:-1]
-        elif self.full_expression:
-            func_endings = ["math.sin(math.radians(", "math.cos(math.radians(", "math.tan(math.radians(",
-                            "math.sqrt(", "math.log10(", "math.log(", "math.pi", "math.e"]
-            found = any(self.full_expression.endswith(f) for f in func_endings)
-            if found:
-                for f_end in func_endings:
-                    if self.full_expression.endswith(f_end):
-                        self.full_expression = self.full_expression[:-len(f_end)]; break
-            else: self.full_expression = self.full_expression[:-1]
-        self._update_display() if self.full_expression or self.current_entry else self._update_display("0")
-
-
-    def _on_plus_minus_press(self):
-        target_entry = ""
-        is_result_negation = False
-
-        if self.display_needs_reset and self.current_entry: 
-            target_entry = self.current_entry
-            is_result_negation = True
-        elif self.current_entry: 
-            target_entry = self.current_entry
-        elif not self.full_expression or self.full_expression.endswith(tuple("+-*/^(**")):
-            self.current_entry = "-" 
-            self._update_display()
-            return
-        else: return
-
-        if target_entry.startswith("(-") and target_entry.endswith(")"): negated_entry = target_entry[2:-1]
-        elif target_entry.startswith("-"): negated_entry = target_entry[1:]
-        elif target_entry != "0":
-            negated_entry = f"(-{target_entry})" if target_entry.startswith("math.") or '(' in target_entry or ')' in target_entry else "-" + target_entry
-        else: negated_entry = "0"
-
-        if is_result_negation:
-            self.current_entry, self.full_expression, self.display_needs_reset = negated_entry, "", False
-        else: self.current_entry = negated_entry
-        self._update_display()
-
-
-    def _preprocess_for_eval(self, expr_str):
-        processed = expr_str.replace('^', '**')
-        patterns = [
-            (r'(\d)([([])', r'\1*\2'), (r'(\d)(math\.)', r'\1*\2'),
-            (r'(\))(\d)', r'\1*\2'), (r'(\))([([])', r'\1*\2'), (r'(\))(math\.)', r'\1*\2'),
-            (r'(math\.pi|math\.e)(\d)', r'\1*\2'), (r'(math\.pi|math\.e)([([])', r'\1*\2'),
-            (r'(math\.pi|math\.e)(math\.)', r'\1*\2')
+        main_buttons = [
+            ("(", 0), (")", 1), ("%", 2), ("abs", 3), ("÷", 4),
+            ("7", 0), ("8", 1), ("9", 2), (",", 3), ("×", 4),
+            ("4", 0), ("5", 1), ("6", 2), ("1/x", 3), ("-", 4),
+            ("1", 0), ("2", 1), ("3", 2), ("x²", 3), ("+", 4),
+            ("0", 0, 2), (".", 2), ("Ans", 3), ("=", 4)
         ]
-        for pat, repl in patterns: processed = re.sub(pat, repl, processed)
-        return processed
 
-    def _on_equals_press(self):
-        if self.display_needs_reset and not self.current_entry and not self.full_expression:
-            if self.display_var.get() not in ["Error", "Error: Div by 0", "Error: Syntax", "Error: Parentheses"]:
-                self.current_entry = self.display_var.get() 
-            else: return
-
-        final_expr = self.full_expression + self.current_entry
-        original_expr_for_history = final_expr
-
-        if not final_expr: self._update_display("0"); self.current_entry = "0"; self.display_needs_reset = True; return
-
-        open_p, closed_p = final_expr.count('('), final_expr.count(')')
-        if open_p > closed_p: final_expr += ')' * (open_p - closed_p)
-        
-        try:
-            processed = self._preprocess_for_eval(final_expr)
-            if processed.count("(") != processed.count(")"): raise SyntaxError("Mismatched parentheses")
-            allowed_names = {"math": math, "__builtins__": {}}
-            result = eval(processed, allowed_names)
-            result_str = str(int(result)) if isinstance(result, float) and result.is_integer() else f"{result:.15g}"
-            if 'e' not in result_str and '.' in result_str: result_str = result_str.rstrip('0').rstrip('.')
+        base_row = sep_row + 1
+        for item in main_buttons:
+            txt, c = item[0], item[1]
+            r_idx = list(main_buttons).index(item) // 5
+            r = base_row + r_idx
             
-            self._update_display(result_str)
-            self._add_to_history(original_expr_for_history, result_str)
-            self.full_expression, self.current_entry, self.display_needs_reset = "", result_str, True
-        except ZeroDivisionError: self._handle_eval_error(original_expr_for_history, "Error: Div by 0")
-        except SyntaxError as e: self._handle_eval_error(original_expr_for_history, "Error: Parentheses" if "parentheses" in str(e) else "Error: Syntax")
-        except (NameError, TypeError, ValueError): self._handle_eval_error(original_expr_for_history, "Error: Syntax")
-        except Exception: self._handle_eval_error(original_expr_for_history, "Error")
-        self._update_live_preview_display()
+            if txt in ["=", "AC"]: color = "#32CD32" if txt == "=" else "#B22222"
+            elif txt in ["÷", "×", "-", "+"]: color = "#FF8C00"
+            elif txt.isdigit() or txt == ".": color = "gray20"
+            else: color = "gray30"
 
-    def _handle_eval_error(self, expression, error_message):
-        self._update_display(error_message)
-        self._add_to_history(expression, error_message)
-        self.full_expression, self.current_entry, self.display_needs_reset = "", "", True
+            colspan = item[2] if len(item) > 2 else 1
+            
+            if txt == "x²": cmd = lambda: self._on_input_raw("**2")
+            elif txt == "1/x": cmd = lambda: self._on_input_raw("**-1")
+            elif txt == "Ans": cmd = lambda: self._on_input("Ans")
+            elif txt == "abs": cmd = lambda: self._on_input_raw("abs(")
+            elif txt == ",": cmd = lambda: self._on_input_raw(",")
+            else: cmd = lambda x=txt: self._on_input(x)
 
-    def _add_to_history(self, expression, result):
-        if len(self.history_log) >= self.MAX_HISTORY_ITEMS: self.history_log.pop(0)
-        self.history_log.append(f"{expression} = {result}")
-        if self.history_visible: self._update_history_display() 
+            self._btn(self.tab_calc, txt, r, c, color, colspan=colspan, font_size=24, cmd=cmd)
 
-    def _update_history_display(self):
-        self.history_textbox.configure(state="normal")
-        self.history_textbox.delete("1.0", "end")
-        for entry in reversed(self.history_log):
-            self.history_textbox.insert("end", entry + "\n\n")
-        self.history_textbox.configure(state="disabled")
-
-    def _copy_to_clipboard(self, text_to_copy, feedback_message="Copied!"):
-        if not text_to_copy or text_to_copy.startswith("Error"): 
-            current_preview_val = self.live_preview_var.get()
-            self.live_preview_var.set("Cannot copy error")
-            self.after(1200, lambda: self.live_preview_var.set(current_preview_val if self.live_preview_var.get() == "Cannot copy error" else self.live_preview_var.get()))
+    def _setup_graphing_tab(self):
+        if not HAS_PLOT_LIBS:
+            ctk.CTkLabel(self.tab_plot, text="Matplotlib is not installed.", text_color="red").pack(pady=20)
             return
+
+        input_frame = ctk.CTkFrame(self.tab_plot, fg_color="transparent")
+        input_frame.pack(fill="x", padx=5, pady=5)
+        
+        ctk.CTkLabel(input_frame, text="y =").pack(side="left", padx=2)
+        self.plot_entry = ctk.CTkEntry(input_frame, placeholder_text="e.g. sin(x)")
+        self.plot_entry.pack(side="left", fill="x", expand=True, padx=2)
+        
+        ctk.CTkButton(input_frame, text="Plot", width=50, fg_color="#32CD32", command=self._plot_graph).pack(side="right", padx=2)
+
+        helper_frame = ctk.CTkFrame(self.tab_plot)
+        helper_frame.pack(fill="x", padx=5, pady=2)
+        
+        helpers = [
+            "x", "sin", "cos", "tan", "log", "ln",
+            "(", ")", "e", "π", "^", "√",
+            "+", "-", "*", "/", "abs", "sinh",
+            "cosh", "tanh", "asin", "acos", "atan", "1/x"
+        ]
+        
+        columns = 6
+        for i, h in enumerate(helpers):
+            btn = ctk.CTkButton(helper_frame, text=h, width=40, height=35, fg_color="gray30",
+                                font=("Arial", 12),
+                                command=lambda t=h: self._insert_plot_token(t))
+            btn.grid(row=i//columns, column=i%columns, padx=2, pady=2, sticky="ew")
+        
+        for i in range(columns): helper_frame.columnconfigure(i, weight=1)
+
+        self.plot_frame = ctk.CTkFrame(self.tab_plot)
+        self.plot_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+    def _btn(self, parent, text, r, c, color, colspan=1, font_size=20, cmd=None):
+        ctk.CTkButton(
+            parent, text=text, font=("Arial", font_size, "bold"),
+            fg_color=color, hover_color=self._adjust_color(color),
+            command=cmd, corner_radius=8
+        ).grid(row=r, column=c, columnspan=colspan, sticky="nsew", padx=3, pady=3)
+
+    def _open_help_window(self):
+        help_win = ctk.CTkToplevel(self)
+        help_win.title("User Guide")
+        help_win.geometry("400x500")
+        help_win.attributes("-topmost", True)
+
+        lbl_title = ctk.CTkLabel(help_win, text="Math Operations Guide", font=("Arial", 20, "bold"))
+        lbl_title.pack(pady=10)
+
+        textbox = ctk.CTkTextbox(help_win, font=("Tahoma", 14), text_color="white")
+        textbox.pack(fill="both", expand=True, padx=10, pady=10)
+
+        help_text = """
+        • Multi-input Functions:
+          For functions like gcd, lcm, nCr, and nPr, use a comma (,) to separate numbers.
+          
+          Example Combination (choose 2 from 5):
+          nCr(5, 2)  --> Result: 10
+          
+          Example GCD:
+          gcd(12, 18) --> Result: 6
+
+        • DEG Button:
+          If enabled (checked), trigonometric inputs (sin, cos, ...) are treated as Degrees.
+          If disabled, they are treated as Radians.
+          
+        • Graphing:
+          In the Graphing tab, the variable must be 'x'.
+          Example: sin(x) * x
+          
+        • Hyperbolic Functions:
+          sinh, cosh, tanh and their inverses are available for engineering calculations.
+        """
+        textbox.insert("0.0", help_text)
+        textbox.configure(state="disabled")
+
+    def _open_history_window(self):
+        hist_win = ctk.CTkToplevel(self)
+        hist_win.title("History")
+        hist_win.geometry("350x500")
+        hist_win.attributes("-topmost", True)
+
+        lbl_title = ctk.CTkLabel(hist_win, text="Calculation History", font=("Arial", 18, "bold"))
+        lbl_title.pack(pady=5)
+
+        textbox = ctk.CTkTextbox(hist_win, font=("Consolas", 14), text_color="white")
+        textbox.pack(fill="both", expand=True, padx=10, pady=5)
+
+        if not self.history_log:
+            textbox.insert("0.0", "No history available.")
+        else:
+            full_log = "\n".join(self.history_log)
+            textbox.insert("0.0", full_log)
+        
+        textbox.configure(state="disabled")
+
+    def _on_input(self, char):
+        if char == "AC":
+            self.expression = ""
+            self.result_var.set("0")
+            self.equation_var.set("")
+        elif char == "Ans":
+             if self.memory_value != 0:
+                 self.expression += str(self.memory_value)
+                 self.result_var.set(self.expression)
+        elif char == "=":
+            self._calculate()
+        elif char in ["×", "÷"]:
+            self.expression += "*" if char == "×" else "/"
+            self.result_var.set(self.expression)
+        elif char == "%":
+             self.expression += "/100"
+             self._calculate()
+        else:
+            self.expression += char
+            self.result_var.set(self.expression)
+
+    def _on_input_raw(self, text):
+        self.expression += text
+        self.result_var.set(self.expression)
+
+    def _insert_plot_token(self, token):
+        if token == "^": token = "**"
+        elif token == "√": token = "sqrt("
+        elif token == "1/x": token = "**-1"
+        elif token in ["sin", "cos", "tan", "sinh", "cosh", "tanh", "asin", "acos", "atan", "log", "ln", "abs"]: 
+            token += "("
+        
+        self.plot_entry.insert(tk.INSERT, token)
+        self.plot_entry.focus_set()
+
+    def _auto_close_parentheses(self, expr_str):
+        open_p = expr_str.count("(")
+        close_p = expr_str.count(")")
+        if open_p > close_p:
+            return expr_str + ")" * (open_p - close_p)
+        return expr_str
+
+    def _calculate(self):
+        original = self.expression
+        if not original: return
+
         try:
-            self.clipboard_clear()
-            self.clipboard_append(text_to_copy)
-            original_preview = self.live_preview_var.get()
-            self.live_preview_var.set(feedback_message)
-            self.after(1200, lambda: self.live_preview_var.set(original_preview if self.live_preview_var.get() == feedback_message else self.live_preview_var.get()))
-        except Exception:
-            original_preview = self.live_preview_var.get()
-            self.live_preview_var.set("Copy failed")
-            self.after(1200, lambda: self.live_preview_var.set(original_preview if self.live_preview_var.get() == "Copy failed" else self.live_preview_var.get()))
+            safe_env = {k: v for k, v in math.__dict__.items() if not k.startswith("__")}
+            safe_env.update({"abs": abs, "round": round})
+            
+            expr = original
+            if self.deg_switch.get(): 
+                for func in ["sin", "cos", "tan"]:
+                     expr = re.sub(r'(?<![a-zA-Z_])math\.(sin|cos|tan)\(', r'math.\1(math.radians(', expr)
 
-    def _on_history_click(self, event):
-        if not self.history_log: return
+            expr = self._auto_close_parentheses(expr)
+
+            res = eval(expr, {"__builtins__": None}, safe_env)
+            
+            self.memory_value = res
+
+            if isinstance(res, (int, float)):
+                res_str = f"{res:g}" 
+            else:
+                res_str = str(res)
+
+            self.result_var.set(res_str)
+            self.equation_var.set(original + " =")
+            
+            self.history_log.append(f"{original} = {res_str}")
+            
+            self.expression = res_str
+            
+        except Exception as e:
+            self.result_var.set("Error")
+
+    def _plot_graph(self):
+        if not HAS_PLOT_LIBS: return
+        func = self.plot_entry.get()
+        if not func: return
+
+        for widget in self.plot_frame.winfo_children(): widget.destroy()
+
         try:
-            click_index_str = self.history_textbox.index(f"@{event.x},{event.y}")
-            line_num_textbox = int(click_index_str.split('.')[0]) 
-            if (line_num_textbox % 2) == 0: return
-            history_log_display_index = (line_num_textbox - 1) // 2            
-            if 0 <= history_log_display_index < len(self.history_log):
-                actual_log_index = len(self.history_log) - 1 - history_log_display_index
-                history_entry_string = self.history_log[actual_log_index]
-                parts = history_entry_string.split(" = ", 1)
-                if len(parts) == 2:
-                    result_part = parts[1]
-                    self._copy_to_clipboard(result_part, "Result Copied!")
-        except Exception: pass 
+            x = np.linspace(-10, 10, 500)
+            safe_np = {
+                "x": x, "np": np, 
+                "sin": np.sin, "cos": np.cos, "tan": np.tan,
+                "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh,
+                "asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
+                "sqrt": np.sqrt, "abs": np.abs, 
+                "log": np.log10, "ln": np.log, 
+                "pi": np.pi, "e": np.e
+            }
+            func_ready = func.replace("^", "**")
+            
+            func_ready = self._auto_close_parentheses(func_ready)
 
-    def _on_key_press(self, event):
-        char, keysym = event.char, event.keysym
-        if keysym in ["Return", "BackSpace", "Escape", "KP_Enter", "Control_L", "Control_R"] or \
-           (keysym.startswith("KP_") and not char) or event.state & 0x4: # Ignore Ctrl modified keys here, handled by specific binding
-             if not ( (event.state & 0x4) and (keysym.lower() == 'c') ) : # if it's not ctrl+c
-                return
+            y = eval(func_ready, {"__builtins__": None}, safe_np)
 
+            fig, ax = plt.subplots(figsize=(3, 2.5), dpi=100)
+            fig.patch.set_facecolor('#2b2b2b')
+            ax.set_facecolor('#1a1a1a')
+            
+            ax.plot(x, y, color='#00ff88', linewidth=1.5)
+            ax.grid(True, color='gray', linestyle=':', alpha=0.3)
+            ax.axhline(y=0, color='white', linewidth=0.5)
+            ax.axvline(x=0, color='white', linewidth=0.5)
+            ax.tick_params(colors='gray', labelsize=8)
+            for spine in ax.spines.values(): spine.set_visible(False)
 
-        if char.isdigit() or char == ".": self._on_digit_press(char)
-        elif char in "+-*/^": self._on_operator_press(char)
-        elif char == '(': self._on_parenthesis_press("(")
-        elif char == ')': self._on_parenthesis_press(")")
-        elif keysym.lower() == 's': self._on_function_press("math.sin(math.radians(")
-        elif keysym.lower() == 'c': self._on_function_press("math.cos(math.radians(")
-        elif keysym.lower() == 't': self._on_function_press("math.tan(math.radians(")
-        elif keysym.lower() == 'l': self._on_function_press("math.log10(")
-        elif keysym.lower() == 'n': self._on_function_press("math.log(")
-        elif keysym.lower() == 'q': self._on_function_press("math.sqrt(")
-        elif keysym.lower() == 'p': self._on_constant_press("math.pi")
-        elif keysym.lower() == 'e': self._on_constant_press("math.e")
-        elif keysym == "equal" and char == "=": self._on_equals_press()
-        elif keysym == "plus" or (keysym == "equal" and char == "+"): self._on_operator_press("+")
-        elif keysym == "minus": self._on_operator_press("-")
-        elif keysym == "asterisk" or (keysym == "8" and char == "*"): self._on_operator_press("*")
-        elif keysym == "slash" or (keysym == "question" and char == "/"): self._on_operator_press("/")
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        except Exception as e:
+            messagebox.showerror("Error", "Invalid Equation")
+
+    def _adjust_color(self, hex_color):
+        return "gray50" if hex_color.startswith("#") else "gray35"
+
+    def _bind_keys(self):
+        self.bind("<Return>", lambda e: self._calculate())
+        self.bind("<KP_Enter>", lambda e: self._calculate())
+        self.bind("<Escape>", lambda e: self._on_input("AC"))
+        self.bind("<BackSpace>", lambda e: self._on_backspace())
+        
+        for key in "0123456789.+-*/^%()":
+            self.bind(key, lambda e, k=key: self._safe_input(k))
+
+    def _safe_input(self, char):
+        if self.tabview.get() == "Graphing":
+            return
+        self._on_input(char)
+
+    def _on_backspace(self):
+        if self.tabview.get() == "Graphing":
+            return
+
+        self.expression = self.expression[:-1]
+        self.result_var.set(self.expression if self.expression else "0")
 
 if __name__ == "__main__":
-    app = CalculatorApp()
+    app = AdvancedCalculator()
     app.mainloop()
