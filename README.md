@@ -1,83 +1,60 @@
-# Python Modern Calculator
+# Advanced Calculator
 
-A sleek, feature-rich scientific calculator built with Python and the CustomTkinter library, offering a modern dark-themed user interface.
+A powerful, dual-mode scientific and graphing calculator built with Python and CustomTkinter. This application combines a modern dark-themed interface with advanced mathematical capabilities and real-time plotting.
 
-![Calculator Screenshot](screenshot.PNG)
+![Main Interface](screenshot.png)
 
 ## Description
 
-This project is a desktop calculator application that provides standard arithmetic operations as well as a range of scientific functions. It features a user-friendly interface with a live calculation preview, a collapsible history log, and intuitive input methods including keyboard support and right-click context menus.
+This project is a desktop calculator application that goes beyond standard arithmetic. It features a tabbed interface separating the **Calculator** and **Graphing** modes. Users can perform complex engineering calculations, number theory operations, and visualize mathematical functions using an integrated Matplotlib backend.
 
-## Features
+## Key Features
 
-* **Modern UI:** Dark theme powered by CustomTkinter for a contemporary look and feel.
-* **Standard Operations:** Addition (`+`), Subtraction (`-`), Multiplication (`*`), Division (`/`).
-* **Scientific Functions:**
-    * Trigonometry: `sin`, `cos`, `tan` (input in degrees, converted to radians for `math` functions).
-    * Logarithms: `log` (base 10), `ln` (natural logarithm).
-    * Power and Roots: Exponentiation (`^`), Square Root (`sqrt`).
-    * Constants: Pi (`π`), Euler's number (`e`).
-* **Input Control:**
-    * Parentheses `(` `)` for order of operations.
-    * Backspace (`DEL`) for corrections.
-    * All Clear (`AC`) to reset the calculator.
-    * Toggle sign (`+/-`).
-* **Responsive Display:**
-    * Large main display for input and results, with auto-adjusting font size for long numbers.
-    * Small live preview display showing the potential result of the current expression as you type.
-* **Calculation History:**
-    * Collapsible history log (toggle with "History ▾/▴" button).
-    * Stores up to 50 recent calculations (expression = result).
-    * Click on a history entry to copy its result to the clipboard.
-* **Copy Functionality:**
-    * Right-click on the main display to open a context menu with a "Copy" option.
-    * (Note: Ctrl+C shortcut for copying from the main display has been removed as per recent updates).
-* **Error Handling:** Displays user-friendly messages for invalid operations (e.g., "Error: Div by 0", "Error: Syntax", "Error: Parentheses").
-* **Implicit Multiplication:** Automatically handles cases like `2(3+1)` or `5sin(30)`.
-* **Automatic Parentheses Balancing:** Attempts to add missing closing parentheses when `=` is pressed.
-* **Keyboard Support:** Most functions are accessible via keyboard shortcuts (see below).
+### 🖥️ User Interface
+
+  * **Modern Dark Theme:** Sleek UI powered by CustomTkinter.
+  * **Tabbed Navigation:** Seamlessly switch between "Calculator" and "Graphing" modes.
+  * **Focus Management:** Smart input handling ensures keyboard typing only affects the active tab.
+
+### 🧮 Advanced Calculator
+
+  * **Standard Operations:** `+`, `-`, `*`, `/`, `%` (Percentage), `abs` (Absolute value).
+  * **Scientific Functions:**
+      * **Trigonometry:** `sin`, `cos`, `tan` (supports both **Degree** and **Radian** modes via a toggle switch).
+      * **Hyperbolic:** `sinh`, `cosh`, `tanh` and their inverse functions (`asin`, `acos`, `atan`).
+      * **Logarithms:** `log` (base 10), `ln` (natural log).
+      * **Powers & Roots:** Square (`x²`), Cube, Power (`^`), Square Root (`√`), Inverse (`1/x`).
+  * **Advanced Math:**
+      * **Combinatorics:** `nCr` (Combinations), `nPr` (Permutations), `n!` (Factorial).
+      * **Number Theory:** `gcd` (Greatest Common Divisor), `lcm` (Least Common Multiple).
+  * **Memory:** `Ans` button to recall the last calculated result.
+  * **Smart Logic:**
+      * **Auto-Close Parentheses:** Automatically adds missing closing parentheses for faster typing.
+      * **History Log:** Dedicated popup window to view past calculations.
+        
+        ![History Window](screenshot2.png)
+      
+      * **Built-in Guide:** Integrated "?" button for usage instructions.
+        
+        ![Help Window](screenshot3.png)
+
+### 📈 Graphing Engine
+
+  * **Function Plotting:** Visualize mathematical functions (e.g., `sin(x) * x` or `x^2`).
+  * **Matplotlib Integration:** High-quality rendering with grid lines and axes.
+  * **Helper Buttons:** Quick-insert buttons for variables and functions in the graphing tab to minimize typing errors.
+
+![Graphing Mode](screenshot4.png)
 
 ## Requirements
 
-* Python 3.x
-* CustomTkinter library
-* Tkinter (usually included with standard Python installations)
+To run this application, you need Python installed along with the following libraries:
 
-To install CustomTkinter, run:
+  * **CustomTkinter** (UI Framework)
+  * **Matplotlib** (Graphing)
+  * **Numpy** (Math operations for graphing)
+
+Install them via pip:
+
 ```bash
-pip install customtkinter
-```
-
-## How to Run
-
-1.  Ensure you have Python and the required libraries installed.
-2.  Save the calculator code as a Python file (e.g., `modern_calculator.py`).
-3.  Open a terminal or command prompt.
-4.  Navigate to the directory where you saved the file.
-5.  Run the script using:
-    ```bash
-    python modern_calculator.py
-    ```
-
-## Keyboard Shortcuts
-
-* **Numbers:** `0-9`, `.`
-* **Operators:** `+`, `-`, `*`, `/`, `^`
-* **Parentheses:** `(`, `)`
-* **Equals:** `Enter` or `Numpad Enter`
-* **All Clear (AC):** `Escape`
-* **Delete (DEL):** `Backspace`
-* **Functions & Constants:**
-    * `s`: sin
-    * `c`: cos
-    * `t`: tan
-    * `l`: log (base 10)
-    * `n`: ln (natural log)
-    * `q`: sqrt (sQuare root)
-    * `p`: π (Pi)
-    * `e`: e (Euler's number)
-* **Numpad:** Numpad digits and operators (`+`, `-`, `*`, `/`, `.`, `Enter`) are also supported.
-
-## Contributing
-
-Feel free to fork this repository, make improvements, and submit pull requests. For major changes, please open an issue first to discuss what you would like to change.
+pip install customtkinter matplotlib numpy
